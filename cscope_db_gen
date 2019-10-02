@@ -1,0 +1,87 @@
+#! /bin/bash
+###########################################################################
+# cscope_db_gen: cscope database generation script
+#
+# by Dan Nygren
+# E-mail: dan.nygren@gmail.com
+#
+#   Create cscope database files to ease browsing of large source code
+# trees that span many files.
+#
+# CALLING SEQUENCE      cscope_db_gen
+#
+# EXAMPLES              cscope_db_gen
+#
+# TARGET SYSTEM         Unix source code development and debug systems
+#
+# DEVELOPMENT SYSTEM    Debian Linux
+#
+# CALLS                 cscope, GNU find
+#
+# CALLED BY             N/A
+#
+# INPUTS                File suffixes in source code tree that you want cscope
+#                       to help you browse.
+#
+# OUTPUTS               cscope.* files. See cscope man page for details.
+#
+# RETURNS               0 success, 1 failure
+#
+# ERROR HANDLING        Prints error message if cscope executable not found.
+#
+# WARNINGS              1) GNU find required for regular expressions used.
+#                       (2. Describe anything a maintainer should be aware of)
+#                       (N. Describe anything a maintainer should be aware of)
+#
+###########################################################################
+
+# File suffixes cscope will build a database for
+SUFFIXES="(c|h|cc|cpp|hpp)"
+
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#^^^^^^^^^^^^ You should only have to change things above this line ^^^^^^^^^^^^
+#^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+script_name=$(/usr/bin/basename $0)
+current_working_directory=$(pwd)
+
+echo "$script_name: Creating cscope database files for $SUFFIXES file suffixes \
+in $current_working_directory"
+
+# Try to find a cscope binary in the following order:
+# 1) Use cscope as defined by CSCOPE environment variable
+# 2) Look for cscope in $PATH
+# 3) Look for cscope in /usr/bin
+if [ -n "${CSCOPE}" ]; then
+    echo "$script_name: Using CSCOPE env variable: \"$CSCOPE\""
+else
+    # try to use cscope in the PATH
+    CSCOPE=$(command -v cscope)
+    if [ -n "${CSCOPE}" ]; then
+        echo "$script_name: Using cscope from PATH: \"$CSCOPE\""
+    else
+        # try to use cscope in /usr/bin
+        cscope_bin="/usr/bin/cscope"
+        if [ -x "${cscope_bin}" ] ; then
+            CSCOPE=${cscope_bin}
+            echo "$script_name: Using cscope from /usr/bin: \"$CSCOPE\""
+        else
+            echo "$script_name: cscope executable not found."
+            exit 1  # Exit false (failure)
+        fi
+    fi
+fi
+
+echo "$script_name: Creating cscope.files for $SUFFIXES ..."
+# Place absolute paths in cscope.files so cscope can be invoked from multiple
+# directories.
+/usr/bin/find $current_working_directory -type f -regextype posix-extended \
+-regex ".*\.$SUFFIXES" > cscope.files
+
+if [ -n "$CSCOPE" ]; then
+    echo "$script_name: Running ${CSCOPE} -bqk"
+    ${CSCOPE} -bqk $(cat cscope.files)
+fi
+
+echo "$script_name: Completed creation of cscope database files."
+exit 0  # Exit true (success)
