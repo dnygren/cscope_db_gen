@@ -1,11 +1,12 @@
 #! /bin/bash
 ###########################################################################
-# cscope_db_gen: cscope database generation script
+# cscope_db_gen: Cscope database generation script
 #
 # by Dan Nygren
-# E-mail: dan.nygren@gmail.com
+# E-mail: nygren@msss.com
+# Permanent E-mail: dan.nygren@gmail.com
 #
-#   Create cscope database files to ease browsing of large source code
+#   Create Cscope database files to ease browsing of large source code
 # trees that span many files.
 #
 # CALLING SEQUENCE      cscope_db_gen
@@ -35,8 +36,17 @@
 #
 ###########################################################################
 
-# File suffixes cscope will build a database for
+# File suffixes "find" will use to create a "cscope.files" file that Cscope
+# will build a database for. This works around the issue of Cscope only
+# identifying C, lex, and yacc files (file extensions .c, .h, .l, .y) to parse.
 SUFFIXES="(c|h|cc|cpp|hpp)"
+
+# Cscope options
+# -b Build the cross-reference only (i.e. don't launch the cscope UI)
+# -q Enable fast symbol lookup
+# -k Turns off the use of the default include dir (usually /usr/include)
+#    when building the database.
+CSCOPE_OPTIONS="-bqk"
 
 #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #^^^^^^^^^^^^ You should only have to change things above this line ^^^^^^^^^^^^
@@ -45,25 +55,25 @@ SUFFIXES="(c|h|cc|cpp|hpp)"
 script_name=$(/usr/bin/basename $0)
 current_working_directory=$(pwd)
 
-echo "$script_name: Creating cscope database files for $SUFFIXES file suffixes \
+echo "$script_name: Creating Cscope database files for $SUFFIXES file suffixes \
 in $current_working_directory"
 
 # Try to find a cscope binary in the following order:
 # 1) Use cscope as defined by CSCOPE environment variable
 # 2) Look for cscope in $PATH
 # 3) Look for cscope in /usr/bin
-if [ -n "${CSCOPE}" ]; then
+if [ -n "$CSCOPE" ]; then
     echo "$script_name: Using CSCOPE env variable: \"$CSCOPE\""
 else
     # try to use cscope in the PATH
     CSCOPE=$(command -v cscope)
-    if [ -n "${CSCOPE}" ]; then
+    if [ -n "$CSCOPE" ]; then
         echo "$script_name: Using cscope from PATH: \"$CSCOPE\""
     else
         # try to use cscope in /usr/bin
         cscope_bin="/usr/bin/cscope"
-        if [ -x "${cscope_bin}" ] ; then
-            CSCOPE=${cscope_bin}
+        if [ -x "$cscope_bin" ] ; then
+            CSCOPE=$cscope_bin
             echo "$script_name: Using cscope from /usr/bin: \"$CSCOPE\""
         else
             echo "$script_name: cscope executable not found."
@@ -73,15 +83,24 @@ else
 fi
 
 echo "$script_name: Creating cscope.files for $SUFFIXES ..."
+
 # Place absolute paths in cscope.files so cscope can be invoked from multiple
 # directories.
 /usr/bin/find $current_working_directory -type f -regextype posix-extended \
 -regex ".*\.$SUFFIXES" > cscope.files
 
+# Place relative paths in cscope.files
+# For vim this requires cscoperelative to be set so the basename of the
+# cscope.out location (usually the project root directory) will be used as
+# the prefix to construct an absolute path.
+# Use :set csre in .vimrc
+#/usr/bin/find -type f -regextype posix-extended \
+#-regex ".*\.$SUFFIXES" > cscope.files
+
 if [ -n "$CSCOPE" ]; then
-    echo "$script_name: Running ${CSCOPE} -bqk"
-    ${CSCOPE} -bqk $(cat cscope.files)
+    echo "$script_name: Running $CSCOPE $CSCOPE_OPTIONS"
+    $CSCOPE $CSCOPE_OPTIONS $(cat cscope.files)
 fi
 
-echo "$script_name: Completed creation of cscope database files."
+echo "$script_name: Completed creation of Cscope database files."
 exit 0  # Exit true (success)
