@@ -6,18 +6,30 @@
 # E-mail: nygren@msss.com
 # Permanent E-mail: dan.nygren@gmail.com
 #
-#   Create Cscope database files to ease browsing of large source code
-# trees that span many files.
+#   Create Cscope database (cscope*out) files to ease browsing of large
+# source code file trees. Also creates a list of files (cscope.files)
+# for the Cscope database to be created from (this feature can be disabled
+# when only the database needs to be recreated). Since Cscope itself only
+# examines .c .h .l & .y file suffixes, this allows specification of other
+# files Cscope can handle (e.g. C++ files) but will not examine on its own.
 #
-# CALLING SEQUENCE      cscope_db_gen
+# CALLING SEQUENCE      cscope_db_gen [-q]
+#                           -q is "quick mode" that does not rebuild the list of
+#                           source files, only the cscope*out database files.
+#                           This is useful when automatically invoking this
+#                           script (such as after an editor like Vim saves a
+#                           file in a large source tree) to reduce the
+#                           hesitation that would occur when rebuilding a long
+#                           file list.
 #
-# EXAMPLES              cscope_db_gen
+# EXAMPLES              cscope_db_gen (Rebuilds file list and database)
+#                       cscope_db_gen -q (Only rebuilds database)
 #
 # TARGET SYSTEM         Unix source code development and debug systems
 #
 # DEVELOPMENT SYSTEM    Debian Linux
 #
-# CALLS                 cscope, GNU find
+# CALLS                 cscope, find
 #
 # CALLED BY             N/A
 #
@@ -40,6 +52,7 @@
 # will build a database for. This works around the issue of Cscope only
 # identifying C, lex, and yacc files (file extensions .c, .h, .l, .y) to parse.
 SUFFIXES="(c|h|cc|cpp|hpp)"
+#SUFFIXES="(c|h|cc|cpp|hpp|c++|h++|cxx|hxx)"
 
 # Cscope options
 # -b Build the cross-reference only (i.e. don't launch the cscope UI)
@@ -55,8 +68,77 @@ CSCOPE_OPTIONS="-bqk"
 script_name=$(/usr/bin/basename $0)
 current_working_directory=$(pwd)
 
-echo "$script_name: Creating Cscope database files for $SUFFIXES file suffixes \
-in $current_working_directory"
+# exit_status=0 for exit true (success) is only set at the end of the script
+exit_status=1 # Presume exit false (failure)
+
+Help ()
+{
+    # The Help function requires exit_status be set before it is called.
+    # If for some reason exit_status is undefined, set it to a non-zero
+    # (failure) value.
+    if [[ -z exit_status ]]
+    then
+        exit_status=1
+    fi
+
+    # ">&2" Duplicates stdout error message to stderr. $(basename $0) is
+    # used so just the name (not including the path) of the command used to
+    # invoke this script is used. Thus you can rename this file and the
+    # correct command will be printed out without having to change the
+    # source code.
+
+    echo >&2 \
+"Usage: $(basename $0) creates Cscope database (cscope*out) files. Also creates
+a list of files (cscope.files) for the Cscope database to be created from. The
+latter feature can be disabled when only the database needs to be recreated.
+Since Cscope itself only examines .c .h .l & .y file suffixes, this allows
+specification of other files Cscope can handle (e.g. C++ files) but will not
+examine on its own.
+
+Examples:
+$ cscope_db_gen     (Default creates cscope.files along with cscope*out files)
+$ cscope_db_gen -q  (Only update cscope*out files. Use when no new files made.)"
+    exit $exit_status # Return with appropriate exit status.
+}
+
+# Get option parameters
+while getopts qh opt
+do
+    case "$opt" in
+     q ) quick_mode="true";;    # cscope_db_gen quick mode:
+                                # Do not rebuild list of source files
+                                # Only rebuild the  Cscope database if a source
+                                # file has changed.
+     h ) exit_status=0
+         Help;;        # Call Help() with a zero (success) exit status.
+    \? ) exit_status=1
+         Help;;        # If an unknown flag is used, call Help() with a
+                       # non-zero (failure) exit status.
+    esac
+done
+
+# If quick mode is not set on the command line, rebuild the source files list.
+if [ -z "$quick_mode" ]
+    then
+        echo -e "\n$script_name: Creating new Cscope database files for"\
+             "$SUFFIXES file suffixes in $current_working_directory"
+
+    # Place absolute paths in cscope.files so cscope can be invoked from
+    # multiple directories.
+    /usr/bin/find $current_working_directory -type f -regextype posix-extended \
+    -regex ".*\.$SUFFIXES" > cscope.files
+
+    # Place relative paths in cscope.files
+    # For vim this requires cscoperelative to be set so the basename of the
+    # cscope.out location (usually the project root directory) will be used as
+    # the prefix to construct an absolute path.
+    # Use :set csre in .vimrc
+    #/usr/bin/find -type f -regextype posix-extended \
+    #-regex ".*\.$SUFFIXES" > cscope.files
+    else
+        echo -e "\n$script_name: Using existing Cscope database files for"\
+             "$SUFFIXES file suffixes in $current_working_directory"
+fi
 
 # Try to find a cscope binary in the following order:
 # 1) Use cscope as defined by CSCOPE environment variable
@@ -81,21 +163,6 @@ else
         fi
     fi
 fi
-
-echo "$script_name: Creating cscope.files for $SUFFIXES ..."
-
-# Place absolute paths in cscope.files so cscope can be invoked from multiple
-# directories.
-/usr/bin/find $current_working_directory -type f -regextype posix-extended \
--regex ".*\.$SUFFIXES" > cscope.files
-
-# Place relative paths in cscope.files
-# For vim this requires cscoperelative to be set so the basename of the
-# cscope.out location (usually the project root directory) will be used as
-# the prefix to construct an absolute path.
-# Use :set csre in .vimrc
-#/usr/bin/find -type f -regextype posix-extended \
-#-regex ".*\.$SUFFIXES" > cscope.files
 
 if [ -n "$CSCOPE" ]; then
     echo "$script_name: Running $CSCOPE $CSCOPE_OPTIONS"
